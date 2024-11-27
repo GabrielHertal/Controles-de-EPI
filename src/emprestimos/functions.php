@@ -17,6 +17,7 @@ function CadastrarEmprestimo($formulario, $banco) : int {
         $id = $banco->ExecutarComando($sql, $parametros);
         $id = $banco->getLastInsertId();
 
+
         return $id;
 
     } catch (PDOException $erro) {
@@ -49,8 +50,67 @@ function CadastrarEquipamentosEmprestimo($idEmprestimo, $idEquipamento, $banco, 
         ]);
     }
 }
-function AtualizarEmprestimo($idEmprestimo,$banco){
 
+function AtualizarEmprestimo($idEmprestimo, $formulario, $banco) : bool {
+    try {
+
+        $colaborador = $formulario['colaborador'];    
+        $situacao = $formulario['situacao'];          
+        $dataEmprestimo = $formulario['dataEmprestimo'];  
+        $dataDevolucao = $formulario['dataDevolucao'];   
+        $observacoes = $formulario['observacoes'];   
+
+        $parametros = [
+            $colaborador,      
+            $situacao,         // Nova situação
+            $dataEmprestimo,   // Nova data do empréstimo
+            $dataDevolucao,    // Nova data de devolução
+            $observacoes,      // Novas observações
+            $idEmprestimo      // ID do empréstimo a ser atualizado
+        ];
+
+        // SQL para atualizar o empréstimo
+        $sql = 'UPDATE emprestimos 
+                SET colaborador = ?, situacao = ?, data_emprestimo = ?, data_devolucao = ?, observacoes = ?
+                WHERE id_emprestimo = ?';
+
+        // Executa o comando SQL
+        $banco->ExecutarComando($sql, $parametros);
+
+        return true;
+
+    } catch (PDOException $erro) {
+        $msg = $erro->getMessage();
+        echo json_encode([
+            'codigo' => 0,
+            'mensagem' => "Erro ao atualizar empréstimo: $msg"
+        ]);
+        return false;
+    }
+}
+
+function AtualizarEquipamentosEmprestimo($idEmprestimo, $idEquipamento, $banco, $quantidade) {
+    try {
+        $sql = 'UPDATE equipamentos_emprestimo 
+                SET quantidade = ? 
+                WHERE emprestimo = ? AND equipamento = ?';
+
+        $parametros = [
+            $quantidade,     // Nova quantidade do equipamento emprestado
+            $idEmprestimo,   // ID do empréstimo
+            $idEquipamento   // ID do equipamento
+        ];
+
+        // Executa o comando SQL
+        $banco->ExecutarComando($sql, $parametros);
+
+    } catch (PDOException $erro) {
+        $msg = $erro->getMessage();
+        echo json_encode([
+            'codigo' => 0,
+            'mensagem' => "Erro ao atualizar equipamento: $msg"
+        ]);
+    }
 }
 
 function BuscarEmprestimo($idEmprestimo,$banco){
@@ -98,45 +158,71 @@ function BuscarEquipamentoEmprestimo($idEmprestimo,$banco){
 }
 
 
-function AtualizarEstoque($banco,$idEquipamento,$quantidade,$soma){
+function AtualizarEstoque($banco, $idEquipamento, $quantidade, $soma) {
 
     try {
 
+        // Consulta a quantidade atual de estoque
         $sqlqtd  = 'SELECT qtd_estoque FROM equipamentos WHERE id_equipamento = ?';
+        $parametros = [$idEquipamento];
+        $qtdAtual = $banco->Consultar($sqlqtd, $parametros);
 
-        $parametros = [
-            $idEquipamento
-        ];
+        $qtdAtual = is_array($qtdAtual) ? reset($qtdAtual) : $qtdAtual;
+        $quantidade = is_array($quantidade) ? reset($quantidade) : $quantidade;
 
-        $qtdAtual = $banco->Consultar($sqlqtd,$parametros);
-
-
-        if ($soma == true){
-            $qtd =  $qtdAtual + $quantidade;
-        }else{
-            $qtd =  $qtdAtual - $qtdAtual;
+        // Se for para somar a quantidade
+        if ($soma) {
+            $qtd = $qtdAtual + $quantidade;
+        } else {  // Se for para subtrair a quantidade
+            $qtd = $qtdAtual - $quantidade;
         }
 
-        $sql = 'UPDATE equipamentos SET qtd_estoque = ?
-        WHERE id_equipamento = ?';
+        // Atualiza o estoque com a nova quantidade
+        $sql = 'UPDATE equipamentos SET qtd_estoque = ? WHERE id_equipamento = ?';
+        $parametros = [$qtd, $idEquipamento];
 
-        $parametros = [
-            $idEquipamento,
-            $qtd 
-        ];
-
-        $result = $banco->ExecutarComando($sql,$parametros);
+        // Executa o comando de atualização
+        $banco->ExecutarComando($sql, $parametros);
 
         return true;
 
     } catch (PDOException $error) {
-        $msg = $erro->getMessage();
+        $msg = $error->getMessage();
         echo json_encode([
             'codigo' => 0,
             'mensagem' => "Erro ao atualizar estoque: $msg"
         ]);
         return false;
     }
+}
 
+
+function VerificarDisponibilidadeEstoque($banco,$idEquipamento, $quantidade) {
+    try {
+        // Consulta a quantidade atual de estoque
+        $sqlqtd = 'SELECT qtd_estoque FROM equipamentos WHERE id_equipamento = ?';
+        $parametros = [$idEquipamento];
+        $qtdAtual = $banco->Consultar($sqlqtd, $parametros);
+
+        // Se o resultado for um array, pega o primeiro valor
+        $qtdAtual = is_array($qtdAtual) ? reset($qtdAtual) : $qtdAtual;
+
+        // Verifica se a quantidade disponível é suficiente
+        if (($qtdAtual - $quantidade) < 0) {
+            return false; // Estoque insuficiente
+        }
+
+        return true; // Estoque suficiente
+    } catch (PDOException $error) {
+        $msg = $error->getMessage();
+        echo json_encode([
+            'codigo' => 0,
+            'mensagem' => "Erro ao verificar estoque: $msg"
+        ]);
+        return false;
+    }
+}
+
+function CancelarEmprestimo($banco,$idEmprestimo){
 
 }

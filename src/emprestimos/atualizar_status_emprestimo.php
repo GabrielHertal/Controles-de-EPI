@@ -15,22 +15,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $idEmprestimo = isset($_GET['id']) ? $_GET['id'] : 0 ;
         $soma =  isset($_GET['soma'])  ? true : false;
+        $situacao =  isset($_GET['situacao'])  ? $_GET['situacao'] : 0;
+        
 
-        $banco->startTransaction();
+        if ($situacao == 2) {
+            $mensagem = "Empréstimo finalizado com sucesso";
+        } elseif ($situacao == 3) {
+            $mensagem = "Empréstimo cancelado com sucesso";
+        }
+        
 
-        $concluiu = FinalizarEmprestimo($banco,$idEmprestimo,$soma);
+
+        $concluiu = AtualizarStatus($banco,$idEmprestimo,$situacao,$soma);
 
         if ($concluiu) {
-            $banco->commit();
             echo json_encode([
                 'codigo'=> 2,
-                'mensagem' => 'Empréstimo finalizado com sucesso!'
+                'mensagem' =>  $mensagem
             ]);
 
         }
 
     } catch (PDOException $error) {
-        $banco->rollback();
+
         $msg = $error->getMessage();
         echo json_encode([
             'codigo' => 0,
@@ -43,14 +50,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 
-function FinalizarEmprestimo($banco,$idEmprestimo,$soma){
+function AtualizarStatus($banco,$idEmprestimo,$situacao,$soma){
 
     try {
 
-        $sql = 'UPDATE emprestimos set situacao = 2 where id_emprestimo = ? ;';
-        $parametros  = [
-            $idEmprestimo  
+
+        $sql = 'UPDATE emprestimos 
+        SET situacao = ?, data_devolucao = ? 
+        WHERE id_emprestimo = ?';
+
+        $date = date('Y-m-d H:i:s'); // Data e hora atuais no formato 'YYYY-MM-DD HH:MM:SS'
+
+        $parametros = [
+            $situacao, // cancelar ou finalizar
+            $date,  // A data atual
+            $idEmprestimo  // ID do empréstimo
         ];
+
 
         $resultado = $banco->ExecutarComando($sql,$parametros);
 
@@ -58,7 +74,13 @@ function FinalizarEmprestimo($banco,$idEmprestimo,$soma){
 
         foreach ($equipamentosEmprestimo as $equipamento) {
             extract($equipamento);
-            AtualizarEstoque($banco,$equipamento['id_equipamento'],$equipamento['quantidade'],false);
+            try {
+                AtualizarEstoque($banco,$id_equipamento, $quantidade, $soma);
+            } catch (Exception $e) {
+                error_log("Erro ao atualizar estoque: " . $e->getMessage());
+                echo "Erro: Não foi possível atualizar o estoque.";
+            }
+
         }
 
 

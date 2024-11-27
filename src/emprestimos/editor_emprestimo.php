@@ -11,23 +11,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mensagem = '';
 
         include '../class/BancodeDados.php';
+        
         $banco = new BancodeDados;
 
-        $banco->start_transaction();
+        foreach ($formulario['itens'] as $equipamento) {
+            $quantidade = $equipamento['quantidade'];
+
+            $temEstoque = VerificarDisponibilidadeEstoque($banco,$equipamento['id'], $quantidade);
+
+            if ($temEstoque == false){
+                echo json_encode([
+                    'codigo' => 0,
+                    'mensagem' => 'Estoque insuficiente! Produto id: '. $equipamento['id']
+                ]);
+                exit;
+            }
+
+        }
 
         if ($formulario['id'] == "NOVO") {
+            $banco->startTransaction();
             $idEmprestimo = CadastrarEmprestimo($formulario, $banco);
             if ($idEmprestimo != 0) {
                 foreach ($formulario['itens'] as $equipamento) {
                     $quantidade = $equipamento['quantidade'];
-                    // VerificarEstoque( $equipamento['id']);
                     CadastrarEquipamentosEmprestimo($idEmprestimo, $equipamento['id'], $banco, $quantidade);
+                    AtualizarEstoque($banco,$equipamento['id'],$quantidade,false);
                 }
             }
             $banco->commit();
             $mensagem = 'Empréstimo cadastrado com sucesso!';
         } else {
-            
+            AtualizarEmprestimo($formulario['id'],$formulario,$banco);
             $mensagem = 'Empréstimo atualizado com sucesso!';
         }
 
@@ -45,5 +60,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
     }
 }
-
-
